@@ -20,7 +20,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     uploadField: "",
     imageFieldPath: "",
     imageUrlPrefix: "",
-    customFields: [] as CustomField[]
+    customFields: [] as CustomField[],
+    svgActionEndpoint: ""
   })
   const [saved, setSaved] = useState(false)
 
@@ -49,7 +50,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           uploadField: savedConfig.uploadField || "",
           imageFieldPath: savedConfig.imageFieldPath || "",
           imageUrlPrefix: savedConfig.imageUrlPrefix || "",
-          customFields: savedConfig.customFields || []
+          customFields: savedConfig.customFields || [],
+          svgActionEndpoint: savedConfig.svgActionEndpoint || ""
         })
       }
     }
@@ -62,7 +64,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       uploadField: config.uploadField.trim(),
       imageFieldPath: config.imageFieldPath.trim(),
       imageUrlPrefix: config.imageUrlPrefix.trim(),
-      customFields: config.customFields
+      customFields: config.customFields,
+      svgActionEndpoint: config.svgActionEndpoint.trim()
     })
     setSaved(true)
     setTimeout(() => {
@@ -307,6 +310,20 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                     value={config.imageUrlPrefix}
                     onChange={(e) =>
                       setConfig({ ...config, imageUrlPrefix: e.target.value })
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    SVG 处理地址
+                  </label>
+                  <input
+                    className="w-full px-3 py-1.5 rounded-md border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition duration-200"
+                    placeholder="请输入SVG处理地址"
+                    value={config.svgActionEndpoint}
+                    onChange={(e) =>
+                      setConfig({ ...config, svgActionEndpoint: e.target.value })
                     }
                   />
                 </div>

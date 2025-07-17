@@ -1,8 +1,8 @@
 {
   "name": "figma-export",
   "displayName": "Figma Export",
-  "version": "0.0.1",
-  "description": "Help to upload image assets to your oss server",
+  "version": "1.0.0",
+  "description": "Help to upload figma image assets and download svg assets",
   "author": "powerfulyang <i@powerfulyang.com>",
   "scripts": {
     "dev": "plasmo dev",

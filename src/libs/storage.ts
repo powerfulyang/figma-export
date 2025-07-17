@@ -24,6 +24,7 @@ export interface UploadConfig {
   imageFieldPath: string
   imageUrlPrefix: string
   customFields: CustomField[]
+  svgActionEndpoint: string
 }
 
 export const syncStorage = new Storage()

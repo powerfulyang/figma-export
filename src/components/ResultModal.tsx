@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from "react"
+import { toast } from "react-toastify"
 import { filter, fromEvent, tap } from "rxjs"
 
 import { cn } from "~libs/cn"
 import type { ExtractAssetsResult } from "~libs/extractAssets"
 import { svgStringToDataURL } from "~libs/getDataURL"
-import { saveSvg } from "~libs/storage"
+import { getUploadConfig, saveSvg } from "~libs/storage"
 import { hasWhiteComponent } from "~libs/svg"
 
 import { ActionButton } from "./ActionButton"
+import { CustomNameModal } from "./CustomNameModal"
 import { UploadButton } from "./UploadButton"
 
 interface ResultModalProps {
@@ -30,6 +32,8 @@ export default function ResultModal({ result, onClose }: ResultModalProps) {
     imageList: [],
     svgList: []
   })
+  const [showCustomNameModal, setShowCustomNameModal] = useState(false)
+  const [currentSvg, setCurrentSvg] = useState<string>("")
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -72,17 +76,45 @@ export default function ResultModal({ result, onClose }: ResultModalProps) {
         svgList: result.svgList.map(({ asset, svg }) => ({
           asset,
           svg,
-          url: getUrl(svg)
+          url: svgStringToDataURL(svg)
         }))
       })
 
       return () => {
         // revoke 资源
         list.imageList.forEach(({ url }) => URL.revokeObjectURL(url))
-        list.svgList.forEach(({ url }) => URL.revokeObjectURL(url))
       }
     }
   }, [result])
+
+  function handleAutoIcon(svg: string) {
+    setCurrentSvg(svg)
+    setShowCustomNameModal(true)
+  }
+
+  async function handleCustomNameConfirm(customName: string) {
+    const config = await getUploadConfig()
+    if (config.svgActionEndpoint) {
+      const response = await fetch(config.svgActionEndpoint, {
+        method: "POST",
+        body: JSON.stringify({
+          content: currentSvg,
+          name: customName
+        })
+      })
+      const data = await response.json()
+      if (data.success) {
+        void navigator.clipboard.writeText(
+          `<div class="i-custom-${customName}"></div>`
+        )
+        toast.success("处理成功，使用代码已写入剪贴板")
+      } else {
+        toast.error(data.message)
+      }
+    } else {
+      toast.error("请先配置 SVG 处理地址")
+    }
+  }
 
   return (
     <div
@@ -188,29 +220,18 @@ export default function ResultModal({ result, onClose }: ResultModalProps) {
                     />
                     <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
                       <div className="flex flex-col gap-4 w-full px-10">
-                        <ActionButton
-                          onClick={() => navigator.clipboard.writeText(svg)}
-                          className="bg-white text-gray-800 px-3 py-1 rounded-lg text-sm"
-                          text="复制 svg 字符串"
-                          successText="复制成功"
-                        />
-                        <ActionButton
-                          onClick={() =>
-                            navigator.clipboard.writeText(
-                              svgStringToDataURL(svg)
-                            )
-                          }
-                          className="bg-white text-gray-800 px-3 py-1 rounded-lg text-sm"
-                          text="复制 base64 地址"
-                          successText="复制成功"
-                        />
+                        <div
+                          className="bg-white text-gray-800 px-3 py-1 rounded-lg text-sm text-center cursor-pointer"
+                          onClick={() => handleAutoIcon(svg)}>
+                          Auto Icon
+                        </div>
                         <div className="grid grid-cols-2 gap-2">
-                          <a
-                            href={url}
-                            target="_blank"
-                            className="bg-white text-gray-800 px-3 py-1 rounded-lg text-sm text-center">
-                            预览
-                          </a>
+                          <ActionButton
+                            onClick={() => navigator.clipboard.writeText(url)}
+                            className="bg-white text-gray-800 px-3 py-1 rounded-lg text-sm text-center"
+                            text={"复制"}
+                            successText="成功"
+                          />
                           <ActionButton
                             onClick={() => saveSvg(asset)}
                             className="bg-white text-gray-800 px-3 py-1 rounded-lg text-sm"
@@ -242,6 +263,12 @@ export default function ResultModal({ result, onClose }: ResultModalProps) {
           </div>
         </div>
       </div>
+      <CustomNameModal
+        isOpen={showCustomNameModal}
+        onClose={() => setShowCustomNameModal(false)}
+        onConfirm={handleCustomNameConfirm}
+        defaultName="auto-icon"
+      />
     </div>
   )
 }
