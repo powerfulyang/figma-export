@@ -95,17 +95,26 @@ export default function ResultModal({ result, onClose }: ResultModalProps) {
   async function handleCustomNameConfirm(customName: string) {
     const config = await getUploadConfig()
     if (config.svgActionEndpoint) {
+      const parser = new DOMParser()
+      const doc = parser.parseFromString(currentSvg, "image/svg+xml")
+      const svgElement = doc.documentElement
+
+      // 移除 width 和 height 属性（如果是属性形式存在）
+      svgElement.removeAttribute("width")
+      svgElement.removeAttribute("height")
+
+      const newContent = svgElement.outerHTML
       const response = await fetch(config.svgActionEndpoint, {
         method: "POST",
         body: JSON.stringify({
-          content: currentSvg,
+          content: newContent,
           name: customName
         })
       })
       const data = await response.json()
       if (data.success) {
         void navigator.clipboard.writeText(
-          `<div class="i-custom-${customName}"></div>`
+          `i-custom-${customName}`
         )
         toast.success("处理成功，使用代码已写入剪贴板")
       } else {
