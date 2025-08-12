@@ -1,3 +1,4 @@
+import { motion } from "framer-motion"
 import React, { type ButtonHTMLAttributes } from "react"
 
 interface LoadingButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -23,24 +24,44 @@ export function LoadingButton({
   )
 
   return (
-    <button
+    <motion.button
       disabled={isLoading}
       className={`
         w-[32px] h-[32px] rounded-full flex items-center justify-center shadow-lg
         ${isLoading ? "bg-blue-300" : "bg-blue-500"} 
         ${className}
       `}
+      whileHover={{ scale: 1.1, y: -2 }}
+      whileTap={{ scale: 0.9 }}
+      animate={{
+        backgroundColor: isLoading ? "#93c5fd" : "#3b82f6",
+        boxShadow: isLoading 
+          ? "0 4px 6px -1px rgba(59, 130, 246, 0.3)" 
+          : "0 10px 15px -3px rgba(59, 130, 246, 0.4)",
+      }}
+      transition={{ duration: 0.2 }}
       {...props}>
-      <div className={`w-5 h-5 ${isLoading ? "animate-spin" : ""}`}>
-        <svg
+      <motion.div 
+        className="w-5 h-5"
+        animate={isLoading ? { rotate: 360 } : { rotate: 0 }}
+        transition={
+          isLoading 
+            ? { duration: 1, repeat: Infinity, ease: "linear" }
+            : { duration: 0.3 }
+        }>
+        <motion.svg
           xmlns="http://www.w3.org/2000/svg"
           className="w-full h-full text-white"
           fill="none"
           viewBox="0 0 24 24"
-          stroke="currentColor">
+          stroke="currentColor"
+          key={isLoading ? 'loading' : 'default'}
+          initial={{ opacity: 0, scale: 0.5 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.3 }}>
           {isLoading ? loadingIcon || defaultLoadingIcon : icon}
-        </svg>
-      </div>
-    </button>
+        </motion.svg>
+      </motion.div>
+    </motion.button>
   )
 }

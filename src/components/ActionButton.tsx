@@ -1,3 +1,4 @@
+import { motion } from "framer-motion"
 import React, { useEffect, useState } from "react"
 
 interface ActionButtonProps {
@@ -46,7 +47,7 @@ export function ActionButton({
   }
 
   return (
-    <button
+    <motion.button
       type="button"
       onClick={handleClick}
       disabled={isSuccess}
@@ -54,18 +55,47 @@ export function ActionButton({
         transition-colors duration-200
         ${isSuccess ? "bg-green-50 text-green-600" : ""}
         ${className}
-      `}>
-      {isSuccess ? (
-        <span className="flex items-center justify-center gap-1">
-          {successIcon}
-          {successText}
-        </span>
-      ) : (
-        <span className="flex items-center justify-center gap-1">
-          {icon}
-          {text}
-        </span>
-      )}
-    </button>
+      `}
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.95 }}
+      animate={{
+        backgroundColor: isSuccess ? "#dcfce7" : undefined,
+        color: isSuccess ? "#16a34a" : undefined,
+      }}
+      transition={{ duration: 0.2 }}>
+      <motion.span 
+        className="flex items-center justify-center gap-1"
+        key={isSuccess ? 'success' : 'default'}
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 10 }}
+        transition={{ duration: 0.2 }}>
+        {isSuccess ? (
+          <>
+            <motion.span
+              initial={{ scale: 0, rotate: -180 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: "spring", duration: 0.5, bounce: 0.3 }}>
+              {successIcon}
+            </motion.span>
+            <motion.span
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.1, duration: 0.3 }}>
+              {successText}
+            </motion.span>
+          </>
+        ) : (
+          <>
+            <motion.span
+              animate={{ scale: [1, 1.1, 1] }}
+              transition={{ duration: 0.3 }}>
+              {icon}
+            </motion.span>
+            <motion.span>{text}</motion.span>
+          </>
+        )}
+      </motion.span>
+    </motion.button>
   )
 }

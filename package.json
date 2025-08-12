@@ -1,7 +1,7 @@
 {
   "name": "figma-export",
   "displayName": "Figma Export",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Help to upload figma image assets and download svg assets",
   "author": "powerfulyang <i@powerfulyang.com>",
   "scripts": {
