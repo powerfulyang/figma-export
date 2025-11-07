@@ -1,0 +1,31 @@
+diff --git a/es/message/index.js b/es/message/index.js
+index a12a53901ec5c74107e20ccbd3a186fadf31e8d6..8e588b564a1f54295a6a8d0e4102bd028fa71c9a 100644
+--- a/es/message/index.js
++++ b/es/message/index.js
+@@ -6,6 +6,8 @@ import MessageList from "./message-list.js";
+ class MessageManger {
+   constructor(config, appContext) {
+     this.messageCount = 0;
++    const host = document.querySelector('wxt-figma-export-root');
++    const mountRoot = host?.shadowRoot?.querySelector('body') || document.body;
+     this.add = (config2) => {
+       var _a;
+       this.messageCount++;
+@@ -51,7 +53,7 @@ class MessageManger {
+     this.destroy = () => {
+       if (this.messages.value.length === 0 && this.container) {
+         render(null, this.container);
+-        document.body.removeChild(this.container);
++        mountRoot.removeChild(this.container);
+         this.container = null;
+         messageInstance[this.position] = void 0;
+       }
+@@ -71,7 +73,7 @@ class MessageManger {
+       vm.appContext = appContext != null ? appContext : Message._context;
+     }
+     render(vm, this.container);
+-    document.body.appendChild(this.container);
++    mountRoot.appendChild(this.container);
+   }
+ }
+ const messageInstance = {};
