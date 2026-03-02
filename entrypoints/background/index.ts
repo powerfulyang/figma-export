@@ -3,7 +3,7 @@ import { AwsClient } from 'aws4fetch'
 import { get } from 'lodash-es'
 import { v4 } from 'uuid'
 import { onMessage } from 'webext-bridge/background'
-import { getUploadConfig } from '@/utils/storage'
+import { addHistoryRecord, getUploadConfig } from '@/utils/storage'
 
 /**
  * Upload via FormData POST to a configurable endpoint.
@@ -73,8 +73,12 @@ async function uploadViaOss(
   const dir = config.directory ? `${config.directory.replace(/\/$/, '')}/` : ''
   const objectKey = `${dir}${v4()}_${fileName}`
 
-  // Use path-style URL: {endpoint}/{bucket}/{key}
-  const putUrl = `${endpoint}/${config.bucket}/${encodeURIComponent(objectKey)}`
+  const url = new URL(endpoint)
+  const host = `${config.bucket}.${url.host}`
+  const pathname = url.pathname.endsWith('/') ? url.pathname : `${url.pathname}/`
+
+  // Use virtual-host style URL: {bucket}.{endpoint}/{key}
+  const putUrl = `${url.protocol}//${host}${pathname}${encodeURIComponent(objectKey).replace(/%2F/g, '/')}`
 
   const response = await aws.fetch(putUrl, {
     method: 'PUT',
@@ -94,7 +98,7 @@ async function uploadViaOss(
     const domain = config.customDomain.replace(/\/$/, '')
     return `${domain}/${objectKey}`
   }
-  return `${endpoint}/${config.bucket}/${objectKey}`
+  return `${url.protocol}//${host}${pathname}${objectKey}`
 }
 
 export default defineBackground(() => {
@@ -111,20 +115,25 @@ export default defineBackground(() => {
 
     const config: UploadConfig = await getUploadConfig()
 
+    let result: { url: string }
     switch (config.mode) {
       case 'formdata':
-        return { url: await uploadViaFormData(blob, fileName, config) }
+        result = { url: await uploadViaFormData(blob, fileName, config) }
+        break
       case 'oss':
-        return { url: await uploadViaOss(blob, fileName, config) }
+        result = { url: await uploadViaOss(blob, fileName, config) }
+        break
       default:
         throw new Error(`不支持的上传模式: ${(config as any).mode}`)
     }
-  })
 
-  onMessage('magic', (message) => {
-    const { data, sender } = message
-    console.log(data, sender)
-  })
+    // Record history
+    await addHistoryRecord({
+      type: 'upload',
+      name: fileName,
+      url: result.url,
+    })
 
-  console.log('magic background for message')
+    return result
+  })
 })

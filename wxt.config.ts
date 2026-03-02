@@ -29,15 +29,29 @@ export default defineConfig({
     }
   },
   manifest: {
+    description: 'A chrome extension for figma export',
     web_accessible_resources: [
       {
         resources: ['injected.js'],
         matches: ['https://www.figma.com/*'],
       },
+      {
+        resources: ['unlock.js'],
+        matches: ['https://www.figma.com/*'],
+      },
     ],
     host_permissions: ['https://www.figma.com/design/*'],
     optional_host_permissions: ['<all_urls>'],
-    permissions: ['storage'],
+    permissions: ['storage', 'declarativeNetRequest'],
+    declarative_net_request: {
+      rule_resources: [
+        {
+          id: 'unlock',
+          enabled: true,
+          path: '/unlock.json',
+        },
+      ],
+    },
   },
   unocss: {
     // Exclude unocss from running for the background

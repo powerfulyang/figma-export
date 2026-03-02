@@ -1,5 +1,5 @@
 export interface SelectionInfo {
   count: number
   name?: string
-  css?: string
+  css?: Record<string, string>
 }

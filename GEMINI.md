@@ -97,7 +97,7 @@ utils/
   unocss.ts                  — css2uno wrapper
   upload.ts                  — uploadFile (delegates to background)
   storage.ts                 — get/set UploadConfig & SelectionPanelPosition
-  constants.ts               — SERVICE name, debugLog, errorLog, warnLog
+  constants.ts               — SERVICE name, logger object (log/warn/error)
   container.ts               — Shadow DOM body resolver
 
 types/

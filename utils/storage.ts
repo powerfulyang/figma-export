@@ -1,5 +1,8 @@
 // Storage utilities for chrome extension
+import type { HistoryRecord } from '@/types/history'
 import type { CssExportSettings, SelectionPanelPosition, UploadConfig } from '@/types/settings'
+import { nanoid } from 'nanoid'
+import { onBeforeUnmount } from 'vue'
 
 const DEFAULT_SCALE = 3
 const DEFAULT_AUTO_ICON_API_URL = ''
@@ -10,7 +13,7 @@ export const DEFAULT_CSS_SETTINGS: CssExportSettings = {
 
 // ─── Unified Upload Config (single source of truth for all settings) ───
 
-export const DEFAULT_UPLOAD_CONFIG: UploadConfig = {
+export const DEFAULT_UPLOAD_CONFIG = {
   mode: 'formdata',
   url: '',
   fileFieldName: 'file',
@@ -20,10 +23,18 @@ export const DEFAULT_UPLOAD_CONFIG: UploadConfig = {
   autoIconApiUrl: DEFAULT_AUTO_ICON_API_URL,
   svgAutoCurrentColor: true,
   cssExportSettings: { ...DEFAULT_CSS_SETTINGS },
-}
+} as UploadConfig
 
 const cache = {
-  uploadConfig: DEFAULT_UPLOAD_CONFIG,
+  uploadConfig: undefined as UploadConfig | undefined,
+}
+
+if (typeof browser !== 'undefined' && browser.storage?.onChanged) {
+  browser.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === 'sync' && changes.uploadConfig) {
+      cache.uploadConfig = changes.uploadConfig.newValue as UploadConfig
+    }
+  })
 }
 
 export async function getUploadConfig(): Promise<UploadConfig> {
@@ -31,26 +42,24 @@ export async function getUploadConfig(): Promise<UploadConfig> {
     if (cache.uploadConfig) {
       return cache.uploadConfig
     }
-    const result = await browser.storage.sync.get<any>(['uploadConfig', 'selectionPanelPosition'])
-    const config = result.uploadConfig ?? cache.uploadConfig
-    if (result.selectionPanelPosition && !config.selectionPanelPosition) {
-      config.selectionPanelPosition = result.selectionPanelPosition
-    }
+    const result = await browser.storage.sync.get<{ uploadConfig: UploadConfig }>('uploadConfig')
+    const config = result.uploadConfig || DEFAULT_UPLOAD_CONFIG
     cache.uploadConfig = config
     return config
   }
   catch (error) {
     console.warn('Failed to get upload config from storage, using default:', error)
-    return { ...DEFAULT_UPLOAD_CONFIG }
+    return DEFAULT_UPLOAD_CONFIG
   }
 }
 
 export async function setUploadConfig(config: UploadConfig): Promise<void> {
   try {
     await browser.storage.sync.set({ uploadConfig: config })
+    cache.uploadConfig = config
   }
   catch (error) {
-    console.error('Failed to save upload config to storage:', error)
+    logger.error('Failed to save upload config to storage:', error)
     throw error
   }
 }
@@ -59,22 +68,22 @@ export async function setUploadConfig(config: UploadConfig): Promise<void> {
 
 export async function getExportScale(): Promise<number> {
   const config = await getUploadConfig()
-  return config.exportScale ?? DEFAULT_SCALE
+  return config.exportScale
 }
 
 export async function getAutoIconApiUrl(): Promise<string> {
   const config = await getUploadConfig()
-  return config.autoIconApiUrl ?? DEFAULT_AUTO_ICON_API_URL
+  return config.autoIconApiUrl
 }
 
 export async function getSvgAutoCurrentColor(): Promise<boolean> {
   const config = await getUploadConfig()
-  return config.svgAutoCurrentColor ?? false
+  return config.svgAutoCurrentColor
 }
 
 export async function getCssExportSettings(): Promise<CssExportSettings> {
   const config = await getUploadConfig()
-  return config.cssExportSettings ?? { ...DEFAULT_CSS_SETTINGS }
+  return config.cssExportSettings
 }
 
 // ─── Selection Panel Position (convenience getters, read from uploadConfig) ───
@@ -110,4 +119,78 @@ export async function checkUploadConfig() {
     return false
   }
   return true
+}
+
+// ─── History Management (stored in storage.local) ───
+
+export async function getHistory(): Promise<HistoryRecord[]> {
+  try {
+    const result = await browser.storage.local.get<{ history: HistoryRecord[] }>('history')
+    return result.history || []
+  }
+  catch (error) {
+    logger.error('Failed to get history from storage:', error)
+    return []
+  }
+}
+
+export async function addHistoryRecord(record: Omit<HistoryRecord, 'id' | 'timestamp'>): Promise<void> {
+  try {
+    const history = await getHistory()
+    const newRecord: HistoryRecord = {
+      ...record,
+      id: nanoid(),
+      timestamp: Date.now(),
+    }
+    // Keep only last 1000 records to avoid storage limits
+    const updatedHistory = [newRecord, ...history].slice(0, 1000)
+    await browser.storage.local.set({ history: updatedHistory })
+  }
+  catch (error) {
+    logger.error('Failed to add history record:', error)
+  }
+}
+
+export async function deleteHistoryRecord(id: string): Promise<void> {
+  try {
+    const history = await getHistory()
+    const updatedHistory = history.filter(r => r.id !== id)
+    await browser.storage.local.set({ history: updatedHistory })
+  }
+  catch (error) {
+    logger.error('Failed to delete history record:', error)
+  }
+}
+
+export async function clearHistory(): Promise<void> {
+  try {
+    await browser.storage.local.set({ history: [] })
+  }
+  catch (error) {
+    logger.error('Failed to clear history:', error)
+  }
+}
+
+/**
+ * Listen for uploadConfig changes and execute callback.
+ * Must be called during component setup.
+ */
+export function onUploadConfigChange(callback: (config: UploadConfig) => void) {
+  if (typeof browser !== 'undefined' && browser.storage?.onChanged) {
+    const handleStorageChange: Parameters<typeof browser.storage.onChanged.addListener>[0] = (changes, areaName) => {
+      if (areaName !== 'sync') {
+        return
+      }
+      if (changes.uploadConfig) {
+        const newValue = changes.uploadConfig.newValue as UploadConfig
+        if (newValue) {
+          callback(newValue)
+        }
+      }
+    }
+    browser.storage.onChanged.addListener(handleStorageChange)
+    onBeforeUnmount(() => {
+      browser.storage.onChanged.removeListener(handleStorageChange)
+    })
+  }
 }

@@ -11,14 +11,14 @@ node_modules
 .output
 stats.html
 stats-*.json
+.wxt/*
+!.wxt/chrome-data
+.wxt/chrome-data/*
 !.wxt/chrome-data/.gitkeep
-.wxt
 .eslintrc-auto-import.json
 typings/auto-imports.d.ts
 
 # Editor directories and files
-.vscode/*
-!.vscode/extensions.json
 .idea
 .DS_Store
 *.suo

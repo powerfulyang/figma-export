@@ -3,9 +3,12 @@ import type { CSSProperties } from 'vue'
 import type { SelectionInfo } from '@/types/selection'
 import type { SelectionPanelPosition, UploadConfig } from '@/types/settings'
 import { onMessage } from 'webext-bridge/content-script'
-import { debugLog, errorLog } from '@/utils/constants'
-import { getSelectionPanelPosition, setSelectionPanelPosition } from '@/utils/storage'
+import { logger } from '@/utils/constants'
+import { getCssExportSettings, getSelectionPanelPosition, setSelectionPanelPosition } from '@/utils/storage'
+import { serializeCSS } from '@/utils/css'
 import { css2uno } from '@/utils/unocss'
+import type { CssExportSettings } from '@/types/settings'
+import { DEFAULT_CSS_SETTINGS } from '@/utils/storage'
 
 defineOptions({
   name: 'SelectionPanel',
@@ -27,9 +30,29 @@ let copyTimer: ReturnType<typeof setTimeout> | null = null
 let dragPointerId: number | null = null
 
 const selectionName = computed(() => selectionInfo.value.name ?? '当前选中')
-const selectionCss = computed(() => selectionInfo.value.css ?? '')
+const selectionCss = ref('')
+const loading = ref(false)
+
+watchEffect(async () => {
+  const css = selectionInfo.value.css
+  if (!css) {
+    selectionCss.value = ''
+    return
+  }
+  loading.value = true
+  try {
+    const settings = await getCssExportSettings()
+    selectionCss.value = serializeCSS(css, {
+      ...settings,
+      scale: 1,
+    })
+  }
+  finally {
+    loading.value = false
+  }
+})
 const selectionUno = computed(() => {
-  const css = selectionInfo.value.css?.trim()
+  const css = selectionCss.value.trim()
   if (!css) {
     return ''
   }
@@ -37,7 +60,7 @@ const selectionUno = computed(() => {
     return css2uno(css)
   }
   catch (error) {
-    errorLog('转换 UnoCSS 失败', error)
+    logger.error('转换 UnoCSS 失败', error)
     return ''
   }
 })
@@ -85,7 +108,7 @@ async function persistPosition(position: SelectionPanelPosition) {
     await setSelectionPanelPosition(position)
   }
   catch (error) {
-    errorLog('保存浮窗位置失败', error)
+    logger.error('保存浮窗位置失败', error)
   }
 }
 
@@ -153,13 +176,13 @@ async function copyContent(type: 'css' | 'uno') {
     }, 1500)
   }
   catch (error) {
-    errorLog('复制内容失败', error)
+    logger.error('复制内容失败', error)
   }
 }
 
 const stopSelectionMessage = onMessage('selection-info', (message) => {
   const data = message.data as unknown as SelectionInfo
-  debugLog('receive selectionInfo', data)
+  logger.log('receive selectionInfo', data)
   if (data.count > 0) {
     selectionInfo.value = data
   }
@@ -169,31 +192,11 @@ function handleResize() {
   resolvedPosition.value = clampPosition(resolvedPosition.value)
 }
 
-let storageChangeHandler: Parameters<typeof browser.storage.onChanged.addListener>[0] | null = null
 
 onMounted(() => {
   void initPosition()
   if (typeof window !== 'undefined') {
     window.addEventListener('resize', handleResize)
-  }
-  if (typeof browser !== 'undefined' && browser.storage?.onChanged) {
-    storageChangeHandler = (changes, areaName) => {
-      if (areaName !== 'sync') {
-        return
-      }
-      if (!('uploadConfig' in changes)) {
-        return
-      }
-      const newValue = changes.uploadConfig?.newValue as UploadConfig | undefined
-      const value = newValue?.selectionPanelPosition
-      if (value) {
-        resolvedPosition.value = clampPosition(value)
-      }
-      else {
-        resolvedPosition.value = clampPosition(getDefaultPosition())
-      }
-    }
-    browser.storage.onChanged.addListener(storageChangeHandler)
   }
 })
 
@@ -201,9 +204,6 @@ onBeforeUnmount(() => {
   stopSelectionMessage()
   if (typeof window !== 'undefined') {
     window.removeEventListener('resize', handleResize)
-  }
-  if (storageChangeHandler && typeof browser !== 'undefined' && browser.storage?.onChanged) {
-    browser.storage.onChanged.removeListener(storageChangeHandler)
   }
   if (copyTimer) {
     clearTimeout(copyTimer)
@@ -241,13 +241,13 @@ onBeforeUnmount(() => {
           type="button"
           class="selection-floating__copy"
           :class="{ 'is-active': copiedSection === 'css' }"
-          :disabled="!canCopyCss"
+          :disabled="!canCopyCss || loading"
           @click="copyContent('css')"
         >
           {{ copiedSection === 'css' ? '已复制' : '复制' }}
         </button>
       </div>
-      <pre class="selection-floating__code">{{ selectionCss || '当前节点不支持 CSS 导出' }}</pre>
+      <pre class="selection-floating__code" :class="{ 'is-loading': loading }">{{ loading ? '正在导出 CSS...' : (selectionCss || '当前节点不支持 CSS 导出') }}</pre>
     </div>
 
     <div class="selection-floating__section">
@@ -259,13 +259,13 @@ onBeforeUnmount(() => {
           type="button"
           class="selection-floating__copy"
           :class="{ 'is-active': copiedSection === 'uno' }"
-          :disabled="!canCopyUno"
+          :disabled="!canCopyUno || loading"
           @click="copyContent('uno')"
         >
           {{ copiedSection === 'uno' ? '已复制' : '复制' }}
         </button>
       </div>
-      <pre class="selection-floating__code">{{ selectionUno || '无法转换为 UnoCSS' }}</pre>
+      <pre class="selection-floating__code" :class="{ 'is-loading': loading }">{{ loading ? '正在计算 UnoCSS...' : (selectionUno || '无法转换为 UnoCSS') }}</pre>
     </div>
   </div>
 </template>
@@ -385,6 +385,11 @@ onBeforeUnmount(() => {
   line-height: 1.5;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.4) transparent;
+
+  &.is-loading {
+    opacity: 0.6;
+    color: rgba(255, 255, 255, 0.6);
+  }
 }
 
 .selection-floating__code::-webkit-scrollbar {

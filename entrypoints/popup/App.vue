@@ -1,42 +1,182 @@
 <script lang="ts" setup>
-import type { FormDataUploadConfig, OssUploadConfig, SelectionPanelPosition, UploadConfig } from '@/types/settings'
-import { Message } from '@arco-design/web-vue'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import type { FormDataUploadConfig, OssUploadConfig, UploadConfig } from '@/types/settings'
 import {
   DEFAULT_CSS_SETTINGS,
-  getSelectionPanelPosition,
   getUploadConfig,
+  onUploadConfigChange,
   resetSelectionPanelPosition,
-  setUploadConfig,
+  setUploadConfig
 } from '@/utils/storage'
-import 'virtual:uno.css'
+import { Message } from '@arco-design/web-vue'
 import '@arco-design/web-vue/es/message/style/index.css'
+import 'virtual:uno.css'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
-const scale = ref(3)
-const autoIconApiUrl = ref('')
+const config = ref<UploadConfig>({ ...DEFAULT_UPLOAD_CONFIG })
 const loading = ref(false)
-const useRemUnits = ref(true)
-const rootFontSize = ref(DEFAULT_CSS_SETTINGS.rootFontSize)
-const panelPosition = ref<SelectionPanelPosition | null>(null)
-const positionLoading = ref(false)
-const resettingPosition = ref(false)
-const svgAutoCurrentColor = ref(false)
+const panelPosition = computed({
+  get: () => config.value.selectionPanelPosition ?? null,
+  set: (val) => {
+    if (val) {
+      config.value.selectionPanelPosition = val
+    }
+    else {
+      delete config.value.selectionPanelPosition
+    }
+  },
+})
 
-// Upload config state
-const uploadMode = ref<'formdata' | 'oss'>('formdata')
-// FormData config
-const fdUrl = ref('')
-const fdFileFieldName = ref('file')
-const fdExtraFieldsText = ref('')
-const fdResponseUrlPath = ref('data.url')
-// OSS config
-const ossEndpoint = ref('')
-const ossBucket = ref('')
-const ossAccessKeyId = ref('')
-const ossAccessKeySecret = ref('')
 
-const ossDirectory = ref('')
-const ossCustomDomain = ref('')
+const scale = computed({
+  get: () => config.value.exportScale,
+  set: (val) => { config.value.exportScale = val },
+})
+
+const autoIconApiUrl = computed({
+  get: () => config.value.autoIconApiUrl,
+  set: (val) => { config.value.autoIconApiUrl = val },
+})
+
+const svgAutoCurrentColor = computed({
+  get: () => config.value.svgAutoCurrentColor,
+  set: (val) => { config.value.svgAutoCurrentColor = val },
+})
+
+const useRemUnits = computed({
+  get: () => config.value.cssExportSettings.useRem,
+  set: (val) => { config.value.cssExportSettings.useRem = val },
+})
+
+const rootFontSize = computed({
+  get: () => config.value.cssExportSettings.rootFontSize,
+  set: (val) => { config.value.cssExportSettings.rootFontSize = val },
+})
+
+const uploadMode = computed({
+  get: () => config.value.mode,
+  set: (val) => {
+    const base = {
+      exportScale: config.value.exportScale,
+      autoIconApiUrl: config.value.autoIconApiUrl,
+      svgAutoCurrentColor: config.value.svgAutoCurrentColor,
+      cssExportSettings: { ...config.value.cssExportSettings },
+      selectionPanelPosition: config.value.selectionPanelPosition,
+    }
+    if (val === 'formdata') {
+      config.value = {
+        ...base,
+        mode: 'formdata',
+        url: (config.value as any).url || '',
+        fileFieldName: (config.value as any).fileFieldName || 'file',
+        extraFields: (config.value as any).extraFields || {},
+        responseUrlPath: (config.value as any).responseUrlPath || 'data.url',
+      }
+    }
+    else {
+      config.value = {
+        ...base,
+        mode: 'oss',
+        endpoint: (config.value as any).endpoint || '',
+        bucket: (config.value as any).bucket || '',
+        accessKeyId: (config.value as any).accessKeyId || '',
+        accessKeySecret: (config.value as any).accessKeySecret || '',
+        directory: (config.value as any).directory || '',
+        customDomain: (config.value as any).customDomain || '',
+      }
+    }
+  },
+})
+
+const fdUrl = computed({
+  get: () => (config.value.mode === 'formdata' ? config.value.url : ''),
+  set: (val) => {
+    if (config.value.mode === 'formdata') {
+      (config.value as FormDataUploadConfig).url = val
+    }
+  },
+})
+
+const fdFileFieldName = computed({
+  get: () => (config.value.mode === 'formdata' ? config.value.fileFieldName : 'file'),
+  set: (val) => {
+    if (config.value.mode === 'formdata') {
+      (config.value as FormDataUploadConfig).fileFieldName = val
+    }
+  },
+})
+
+const fdResponseUrlPath = computed({
+  get: () => (config.value.mode === 'formdata' ? config.value.responseUrlPath : 'data.url'),
+  set: (val) => {
+    if (config.value.mode === 'formdata') {
+      (config.value as FormDataUploadConfig).responseUrlPath = val
+    }
+  },
+})
+
+const fdExtraFieldsText = computed({
+  get: () => serializeExtraFields(config.value.mode === 'formdata' ? (config.value.extraFields || {}) : {}),
+  set: (val) => {
+    if (config.value.mode === 'formdata') {
+      (config.value as FormDataUploadConfig).extraFields = parseExtraFields(val)
+    }
+  },
+})
+
+const ossEndpoint = computed({
+  get: () => (config.value.mode === 'oss' ? config.value.endpoint : ''),
+  set: (val) => {
+    if (config.value.mode === 'oss') {
+      (config.value as OssUploadConfig).endpoint = val
+    }
+  },
+})
+
+const ossBucket = computed({
+  get: () => (config.value.mode === 'oss' ? config.value.bucket : ''),
+  set: (val) => {
+    if (config.value.mode === 'oss') {
+      (config.value as OssUploadConfig).bucket = val
+    }
+  },
+})
+
+const ossAccessKeyId = computed({
+  get: () => (config.value.mode === 'oss' ? config.value.accessKeyId : ''),
+  set: (val) => {
+    if (config.value.mode === 'oss') {
+      (config.value as OssUploadConfig).accessKeyId = val
+    }
+  },
+})
+
+const ossAccessKeySecret = computed({
+  get: () => (config.value.mode === 'oss' ? config.value.accessKeySecret : ''),
+  set: (val) => {
+    if (config.value.mode === 'oss') {
+      (config.value as OssUploadConfig).accessKeySecret = val
+    }
+  },
+})
+
+const ossDirectory = computed({
+  get: () => (config.value.mode === 'oss' ? config.value.directory : ''),
+  set: (val) => {
+    if (config.value.mode === 'oss') {
+      (config.value as OssUploadConfig).directory = val
+    }
+  },
+})
+
+const ossCustomDomain = computed({
+  get: () => (config.value.mode === 'oss' ? config.value.customDomain : ''),
+  set: (val) => {
+    if (config.value.mode === 'oss') {
+      (config.value as OssUploadConfig).customDomain = val
+    }
+  },
+})
+
 
 function parseExtraFields(text: string): Record<string, string> {
   const fields: Record<string, string> = {}
@@ -56,68 +196,55 @@ function serializeExtraFields(fields: Record<string, string>): string {
   return Object.entries(fields).map(([k, v]) => `${k}=${v}`).join('\n')
 }
 
-function loadUploadConfigToState(config: UploadConfig) {
-  // General settings
-  scale.value = config.exportScale ?? 3
-  autoIconApiUrl.value = config.autoIconApiUrl ?? ''
-  svgAutoCurrentColor.value = config.svgAutoCurrentColor ?? false
-  const css = config.cssExportSettings ?? DEFAULT_CSS_SETTINGS
-  useRemUnits.value = css.useRem
-  rootFontSize.value = css.rootFontSize
+onMounted(async () => {
+  try {
+    loading.value = true
+    config.value = await getUploadConfig()
 
-  // Upload settings
-  uploadMode.value = config.mode
-  if (config.mode === 'formdata') {
-    fdUrl.value = config.url
-    fdFileFieldName.value = config.fileFieldName || 'file'
-    fdExtraFieldsText.value = serializeExtraFields(config.extraFields || {})
-    fdResponseUrlPath.value = config.responseUrlPath || 'data.url'
   }
-  else if (config.mode === 'oss') {
-    ossEndpoint.value = config.endpoint
-    ossBucket.value = config.bucket
-    ossAccessKeyId.value = config.accessKeyId
-    ossAccessKeySecret.value = config.accessKeySecret
-    ossDirectory.value = config.directory
-    ossCustomDomain.value = config.customDomain
+  catch (error) {
+    logger.error('Failed to load settings:', error)
+    Message.error('加载设置失败')
+  }
+  finally {
+    loading.value = false
+  }
+})
+
+async function saveSettings() {
+  try {
+    loading.value = true
+
+    // Normalize root font size
+    config.value.cssExportSettings.rootFontSize = config.value.cssExportSettings.rootFontSize || DEFAULT_CSS_SETTINGS.rootFontSize
+
+    await setUploadConfig(config.value)
+    if (config.value.mode === 'formdata' && config.value.url) {
+      await ensureHostPermission(config.value.url)
+    }
+    else if (config.value.mode === 'oss' && config.value.endpoint && config.value.bucket) {
+      // Use virtual-host style URL: {bucket}.{endpoint}
+      const endpoint = config.value.endpoint.startsWith('http') ? config.value.endpoint : `https://${config.value.endpoint}`
+      const url = new URL(endpoint)
+      const virtualHost = `${url.protocol}//${config.value.bucket}.${url.host}`
+      await ensureHostPermission(virtualHost)
+    }
+    Message.success('设置已保存 ✨')
+  }
+  catch (error: any) {
+    logger.error('Failed to save settings:', error)
+    if (error && error.message && error.message.includes('访问权限')) {
+      Message.error(error.message)
+    }
+    else {
+      Message.error('保存设置失败 😞')
+    }
+  }
+  finally {
+    loading.value = false
   }
 }
 
-function buildUploadConfig(): UploadConfig {
-  const normalizedRootFontSize = rootFontSize.value || DEFAULT_CSS_SETTINGS.rootFontSize
-  rootFontSize.value = normalizedRootFontSize
-
-  const baseSettings = {
-    exportScale: scale.value,
-    autoIconApiUrl: autoIconApiUrl.value,
-    svgAutoCurrentColor: svgAutoCurrentColor.value,
-    cssExportSettings: {
-      useRem: useRemUnits.value,
-      rootFontSize: normalizedRootFontSize,
-    },
-  }
-
-  if (uploadMode.value === 'oss') {
-    return {
-      ...baseSettings,
-      mode: 'oss',
-      endpoint: ossEndpoint.value,
-      bucket: ossBucket.value,
-      accessKeyId: ossAccessKeyId.value,
-      accessKeySecret: ossAccessKeySecret.value,
-      directory: ossDirectory.value,
-      customDomain: ossCustomDomain.value,
-    } satisfies OssUploadConfig
-  }
-  return {
-    ...baseSettings,
-    mode: 'formdata',
-    url: fdUrl.value,
-    fileFieldName: fdFileFieldName.value || 'file',
-    extraFields: parseExtraFields(fdExtraFieldsText.value),
-    responseUrlPath: fdResponseUrlPath.value || 'data.url',
-  } satisfies FormDataUploadConfig
-}
 
 function extractOrigin(url: string): string {
   try {
@@ -145,77 +272,32 @@ const scalePresets = [
   { value: 4, label: '4x (极高清)' },
 ]
 
-onMounted(async () => {
-  try {
-    const uploadConfig = await getUploadConfig()
-    loadUploadConfigToState(uploadConfig)
-    panelPosition.value = await getSelectionPanelPosition()
-  }
-  catch (error) {
-    console.error('Failed to load settings:', error)
-    Message.error('加载设置失败')
-  }
-})
 
 
-async function saveSettings() {
-  try {
-    loading.value = true
 
-    const uploadConfig = buildUploadConfig()
-    await setUploadConfig(uploadConfig)
-    if (uploadConfig.mode === 'formdata' && uploadConfig.url) {
-      await ensureHostPermission(uploadConfig.url)
-    }
-    else if (uploadConfig.mode === 'oss' && uploadConfig.endpoint) {
-      // Use path-style URL, so we need permission for the endpoint origin directly
-      const endpoint = uploadConfig.endpoint.startsWith('http') ? uploadConfig.endpoint : `https://${uploadConfig.endpoint}`
-      await ensureHostPermission(endpoint)
-    }
-    Message.success('设置已保存 ✨')
-  }
-  catch (error: any) {
-    console.error('Failed to save settings:', error)
-    if (error && error.message && error.message.includes('访问权限')) {
-      Message.error(error.message)
-    }
-    else {
-      Message.error('保存设置失败 😞')
-    }
-  }
-  finally {
-    loading.value = false
-  }
-}
 
 async function refreshPanelPosition() {
   try {
-    positionLoading.value = true
-    panelPosition.value = await getSelectionPanelPosition()
+    config.value = await getUploadConfig()
+
     Message.success('浮窗位置已刷新')
   }
   catch (error) {
-    console.error('Failed to refresh panel position:', error)
+    logger.error('Failed to refresh panel position:', error)
     Message.error('刷新浮窗位置失败')
-  }
-  finally {
-    positionLoading.value = false
   }
 }
 
 async function handleResetPanelPosition() {
   try {
-    resettingPosition.value = true
     await resetSelectionPanelPosition()
-    panelPosition.value = null
+    config.value = await getUploadConfig()
+
     Message.success('浮窗位置已重置')
   }
   catch (error) {
-    console.error('Failed to reset panel position:', error)
+    logger.error('Failed to reset panel position:', error)
     Message.error('重置浮窗位置失败')
-  }
-  finally {
-    resettingPosition.value = false
   }
 }
 
@@ -232,28 +314,26 @@ const panelPositionDisplay = computed(() => {
   }
 })
 
-if (typeof browser !== 'undefined' && browser.storage?.onChanged) {
-  const handleStorageChange: Parameters<typeof browser.storage.onChanged.addListener>[0] = (changes, areaName) => {
-    if (areaName !== 'sync') {
-      return
-    }
-    if ('uploadConfig' in changes) {
-      const newValue = changes.uploadConfig?.newValue as UploadConfig | undefined
-      panelPosition.value = newValue?.selectionPanelPosition ?? null
-    }
-  }
-  browser.storage.onChanged.addListener(handleStorageChange)
-  onBeforeUnmount(() => {
-    browser.storage.onChanged.removeListener(handleStorageChange)
-  })
+onUploadConfigChange((newValue) => (config.value = newValue))
+
+function openHistory() {
+  browser.tabs.create({ url: browser.runtime.getURL('/options.html') })
 }
 </script>
 
 <template>
   <div class="popup-container">
-    <a-card :bordered="false" class="main-card mb-8">
+    <a-spin :loading="loading" tip="正在加载配置..." class="w-full">
+      <a-card :bordered="false" class="main-card mb-8">
+
       <template #title>
-        <span class="text-base font-medium">🎨 Figma 导出设置</span>
+        <div class="flex justify-between items-center w-full pr-4">
+          <span class="text-base font-medium">🎨 Figma 导出设置</span>
+          <a-button type="text" size="small" @click="openHistory">
+            <template #icon><div class="mdi:history text-lg" /></template>
+            历史记录
+          </a-button>
+        </div>
       </template>
 
       <a-form layout="vertical" size="small">
@@ -309,10 +389,10 @@ if (typeof browser !== 'undefined' && browser.storage?.onChanged) {
               </a-tag>
             </div>
             <div class="flex gap-2">
-              <a-button size="mini" :loading="positionLoading" @click="refreshPanelPosition">
+              <a-button size="mini" @click="refreshPanelPosition">
                 刷新
               </a-button>
-              <a-button size="mini" type="outline" :loading="resettingPosition" @click="handleResetPanelPosition">
+              <a-button size="mini" type="outline" @click="handleResetPanelPosition">
                 重置
               </a-button>
             </div>
@@ -377,7 +457,8 @@ if (typeof browser !== 'undefined' && browser.storage?.onChanged) {
           </a-button>
         </div>
       </a-form>
-    </a-card>
+      </a-card>
+    </a-spin>
   </div>
 </template>
 

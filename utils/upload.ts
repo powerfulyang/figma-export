@@ -1,7 +1,7 @@
 import { sendMessage } from 'webext-bridge/content-script'
 
 export interface UploadOptions {
-  onProgress?: (progress: number) => void
+  // 获取不了进度
 }
 
 /**
@@ -12,16 +12,9 @@ export interface UploadOptions {
 export async function uploadFile(
   blobUrl: string,
   fileName: string,
-  options: UploadOptions,
+  _options?: UploadOptions,
 ): Promise<string> {
-  // Signal start of upload
-  options.onProgress?.(0)
-
   // Send blobUrl and fileName to background script, which will fetch the blob content
   const result = await sendMessage('upload-file', { blobUrl, fileName }, 'background') as { url: string }
-
-  // Signal completion
-  options.onProgress?.(1)
-
   return result.url
 }

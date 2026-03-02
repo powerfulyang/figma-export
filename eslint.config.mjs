@@ -9,6 +9,7 @@ export default antfu(
       'public/*',
       'docs/*',
       '*.md',
+      'pnpm-workspace.yaml',
     ],
     unocss: true,
     formatters: {
@@ -35,7 +36,6 @@ export default antfu(
     rules: {
       'antfu/no-top-level-await': 'off',
       'eslint-comments/no-unlimited-disable': 'off',
-      'no-console': 'off',
       'ts/ban-ts-comment': 'off',
     },
   },

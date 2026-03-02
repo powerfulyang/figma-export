@@ -31,10 +31,5 @@ export default defineContentScript({
 
     // 4. Mount the UI
     ui.mount()
-
-    // message
-    onMessage('get-css-settings', async () => {
-      return getCssExportSettings()
-    })
   },
 })

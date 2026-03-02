@@ -26,5 +26,5 @@ export function listenSelectionChange(callback: () => void) {
   canvas.addEventListener('click', handleClick, options)
   objectsPanel.addEventListener('click', handleClick, options)
   window.addEventListener('keydown', handleKeyDown, options)
-  debugLog('start listening selection change')
+  logger.log('start listening selection change')
 }

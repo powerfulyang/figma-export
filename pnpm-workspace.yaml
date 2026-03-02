@@ -1,6 +1,6 @@
 shellEmulator: true
 
-trustPolicy: no-downgrade
+trustPolicy: off
 
 patchedDependencies:
   '@arco-design/web-vue': patches/@arco-design__web-vue.patch

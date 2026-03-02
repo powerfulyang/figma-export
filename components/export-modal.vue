@@ -1,13 +1,16 @@
 <script lang="ts" setup>
 import type { ExportedItem } from '@/types/item'
+import { performAutoIcon, performUpload } from '@/utils/actions'
+import { getContainer } from '@/utils/container'
+import { getCssExportSettings, getSvgAutoCurrentColor } from '@/utils/storage'
 import { Message } from '@arco-design/web-vue'
 import saveAs from 'file-saver'
-import { nanoid } from 'nanoid'
 import { computed, ref, watch } from 'vue'
-import { getContainer } from '@/utils/container'
-import { getAutoIconApiUrl, getSvgAutoCurrentColor } from '@/utils/storage'
-import { getCustomIcon } from '@/utils/svg'
-import { uploadFile } from '@/utils/upload'
+import { serializeCSS } from '@/utils/css'
+import { css2uno } from '@/utils/unocss'
+
+
+
 
 interface Props {
   exportedItems: ExportedItem[]
@@ -28,8 +31,11 @@ const selectedFormat = ref<ExportFormat>('SVG')
 
 // 上传和auto icon状态
 const uploadingItems = ref<Set<string>>(new Set())
-const uploadProgress = ref<Record<string, number>>({})
 const autoIconingItems = ref<Set<string>>(new Set())
+const cssSettings = ref({
+  useRem: true,
+  rootFontSize: 16,
+})
 
 const itemColorSettings = ref<Record<string, { isMono: boolean, rawColor: string, originalColor: string, previewColor: string }>>({})
 
@@ -79,9 +85,11 @@ watch(() => props.exportedItems, () => {
   processItems()
 }, { immediate: true })
 
-watch(visible, (newVal) => {
-  if (newVal)
+watch(visible, async (newVal) => {
+  if (newVal) {
     processItems() // Re-process when modal opens just in case storage changed
+    cssSettings.value = await getCssExportSettings()
+  }
 })
 
 function getFinalSvgString(item: ExportedItem): string {
@@ -202,24 +210,32 @@ async function copySvgUrl(item: ExportedItem) {
   Message.success('SVG链接已复制')
 }
 
-// A simple local function if css2uno is not imported properly
-// Assuming it is globally available or handled somewhere.
-// It seems the original code used `css2uno` without importing it.
-declare function css2uno(css: string): string
+function getItemCss(item: ExportedItem): string {
+  if (!item.css)
+    return ''
+  if (typeof item.css === 'string')
+    return item.css
+  return serializeCSS(item.css, {
+    ...cssSettings.value,
+    scale: 1,
+  })
+}
 
 async function copyCss(item: ExportedItem) {
-  if (!item.css) {
+  const css = getItemCss(item)
+  if (!css) {
     return Message.error('CSS内容为空')
   }
-  await navigator.clipboard.writeText(item.css)
+  await navigator.clipboard.writeText(css)
   Message.success('CSS内容已复制')
 }
 
 async function copyUnocss(item: ExportedItem) {
-  if (!item.css) {
+  const css = getItemCss(item)
+  if (!css) {
     return Message.error('UNOCSS内容为空')
   }
-  await navigator.clipboard.writeText(typeof css2uno !== 'undefined' ? css2uno(item.css) : item.css)
+  await navigator.clipboard.writeText(css2uno(css))
   Message.success('UNOCSS内容已复制')
 }
 
@@ -231,34 +247,20 @@ async function handleUpload(item: ExportedItem, index: number) {
 
   try {
     uploadingItems.value.add(itemKey)
-    if (!item.webpUrl) {
-      return Message.error('WEBP内容为空')
-    }
-    uploadProgress.value[itemKey] = 0
-    const fileUrl = await uploadFile(item.webpUrl, `${item.name}.webp`, {
-      onProgress: (p: number) => {
-        uploadProgress.value[itemKey] = Math.round(p * 100)
-      },
-    })
-    await navigator.clipboard.writeText(fileUrl)
-    Message.success('成功上传文件，文件URL已复制到剪贴板')
+    await performUpload(item)
   }
-  catch (error: any) {
-    console.error('上传过程中发生错误', error)
-    Message.error(error?.message || '上传失败，请查看控制台获取更多信息。')
+  catch (error) {
+    logger.error('上传过程中发生错误', error)
+    Message.error(error instanceof Error? error.message: '上传过程中发生错误')
   }
   finally {
     uploadingItems.value.delete(itemKey)
-    delete uploadProgress.value[itemKey]
   }
 }
 
+
 // 处理单个项目的auto icon
 async function handleAutoIcon(item: ExportedItem, index: number) {
-  const apiUrl = await getAutoIconApiUrl()
-  if (!apiUrl) {
-    return Message.error('请先配置自动图标 API 地址')
-  }
   const itemKey = `${selectedFormat.value}-${index}`
   if (autoIconingItems.value.has(itemKey))
     return
@@ -266,37 +268,17 @@ async function handleAutoIcon(item: ExportedItem, index: number) {
   try {
     autoIconingItems.value.add(itemKey)
     const content = getFinalSvgString(item)
-    if (!content) {
-      return Message.error('SVG内容为空')
-    }
-    const svgName = nanoid(6)
-    const res = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        name: svgName,
-        content,
-      }),
-    })
-    const json = await res.json()
-    if (json.success) {
-      await navigator.clipboard.writeText(getCustomIcon(svgName, item))
-      Message.success('图标添加成功')
-    }
-    else {
-      Message.error(`图标添加失败，${json.message}`)
-    }
+    await performAutoIcon(item, content)
   }
   catch (error) {
-    console.error('Auto icon过程中发生错误', error)
-    Message.error(`图标添加失败。${error instanceof Error ? error.message : '未知错误'}`)
+    logger.error('Auto icon过程中发生错误', error)
+    Message.error(error instanceof Error? error.message: 'Auto icon过程中发生错误')
   }
   finally {
     autoIconingItems.value.delete(itemKey)
   }
 }
+
 
 const containerRef = ref<HTMLElement>()
 
@@ -402,12 +384,12 @@ watch(
 
               <!-- CSS 代码显示 -->
               <div v-else-if="selectedFormat === 'CSS' && item.css" class="css-preview">
-                <pre class="css-code">{{ item.css }}</pre>
+                <pre class="css-code">{{ getItemCss(item) }}</pre>
               </div>
 
               <!-- UNOCSS 代码显示 -->
               <div v-else-if="selectedFormat === 'UNOCSS' && item.css" class="css-preview">
-                <pre class="css-code">{{ typeof css2uno !== 'undefined' ? css2uno(item.css) : item.css }}</pre>
+                <pre class="css-code">{{ css2uno(getItemCss(item)) }}</pre>
               </div>
             </div>
 
@@ -463,7 +445,7 @@ watch(
                 <template #icon>
                   <div class="mdi:cloud-upload text-sm" />
                 </template>
-                {{ uploadingItems.has(`${selectedFormat}-${index}`) ? `${uploadProgress[`${selectedFormat}-${index}`] ?? 0}%` : '上传' }}
+                上传
               </a-button>
 
               <a-button

@@ -12,5 +12,5 @@ export function handleSvg(svg: string) {
 }
 
 export function getCustomIcon(name: string, item: ExportedItem) {
-  return `<div class="i-custom-${name} w-[${item.width}px] h-[${item.height}px]"></div>`
+  return `<div class="${name} w-[${item.width}px] h-[${item.height}px]"></div>`
 }
