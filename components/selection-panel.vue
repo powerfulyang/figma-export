@@ -122,8 +122,8 @@ function handlePointerDown(event: PointerEvent) {
     x: event.clientX,
     y: event.clientY,
   }
-  dragOrigin.value = { ...resolvedPosition.value }
-  ;(event.currentTarget as HTMLElement | null)?.setPointerCapture?.(event.pointerId)
+  dragOrigin.value = { ...resolvedPosition.value };
+  (event.currentTarget as HTMLElement | null)?.setPointerCapture?.(event.pointerId)
   event.preventDefault()
 }
 
@@ -144,7 +144,7 @@ function cancelDragging(event: PointerEvent) {
     return
   }
   if (dragPointerId !== null) {
-    ;(event.currentTarget as HTMLElement | null)?.releasePointerCapture?.(dragPointerId)
+    (event.currentTarget as HTMLElement | null)?.releasePointerCapture?.(dragPointerId)
     dragPointerId = null
   }
   isDragging.value = false
@@ -182,10 +182,7 @@ async function copyContent(type: 'css' | 'uno') {
 
 const stopSelectionMessage = onMessage('selection-info', (message) => {
   const data = message.data as unknown as SelectionInfo
-  logger.log('receive selectionInfo', data)
-  if (data.count > 0) {
-    selectionInfo.value = data
-  }
+  selectionInfo.value = data
 })
 
 function handleResize() {
@@ -212,21 +209,10 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div
-    v-if="selectionInfo.count > 0"
-    ref="panelRef"
-    class="selection-floating"
-    :class="{ 'is-dragging': isDragging }"
-    :style="panelStyle"
-  >
-    <div
-      class="selection-floating__header"
-      :class="{ 'is-dragging': isDragging }"
-      @pointerdown="handlePointerDown"
-      @pointermove="handlePointerMove"
-      @pointerup="handlePointerUp"
-      @pointercancel="cancelDragging"
-    >
+  <div v-if="selectionInfo.count > 0" ref="panelRef" class="selection-floating" :class="{ 'is-dragging': isDragging }"
+    :style="panelStyle">
+    <div class="selection-floating__header" :class="{ 'is-dragging': isDragging }" @pointerdown="handlePointerDown"
+      @pointermove="handlePointerMove" @pointerup="handlePointerUp" @pointercancel="cancelDragging">
       <div class="selection-floating__title">
         {{ selectionName }}
       </div>
@@ -237,17 +223,13 @@ onBeforeUnmount(() => {
         <div class="selection-floating__section-title">
           CSS
         </div>
-        <button
-          type="button"
-          class="selection-floating__copy"
-          :class="{ 'is-active': copiedSection === 'css' }"
-          :disabled="!canCopyCss || loading"
-          @click="copyContent('css')"
-        >
+        <button type="button" class="selection-floating__copy" :class="{ 'is-active': copiedSection === 'css' }"
+          :disabled="!canCopyCss || loading" @click="copyContent('css')">
           {{ copiedSection === 'css' ? '已复制' : '复制' }}
         </button>
       </div>
-      <pre class="selection-floating__code" :class="{ 'is-loading': loading }">{{ loading ? '正在导出 CSS...' : (selectionCss || '当前节点不支持 CSS 导出') }}</pre>
+      <pre class="selection-floating__code"
+        :class="{ 'is-loading': loading }">{{ loading ? '正在导出 CSS...' : (selectionCss || '当前节点不支持 CSS 导出') }}</pre>
     </div>
 
     <div class="selection-floating__section">
@@ -255,17 +237,13 @@ onBeforeUnmount(() => {
         <div class="selection-floating__section-title">
           UnoCSS
         </div>
-        <button
-          type="button"
-          class="selection-floating__copy"
-          :class="{ 'is-active': copiedSection === 'uno' }"
-          :disabled="!canCopyUno || loading"
-          @click="copyContent('uno')"
-        >
+        <button type="button" class="selection-floating__copy" :class="{ 'is-active': copiedSection === 'uno' }"
+          :disabled="!canCopyUno || loading" @click="copyContent('uno')">
           {{ copiedSection === 'uno' ? '已复制' : '复制' }}
         </button>
       </div>
-      <pre class="selection-floating__code" :class="{ 'is-loading': loading }">{{ loading ? '正在计算 UnoCSS...' : (selectionUno || '无法转换为 UnoCSS') }}</pre>
+      <pre class="selection-floating__code"
+        :class="{ 'is-loading': loading }">{{ loading ? '正在计算 UnoCSS...' : (selectionUno || '无法转换为 UnoCSS') }}</pre>
     </div>
   </div>
 </template>

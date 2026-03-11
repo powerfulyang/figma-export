@@ -18,25 +18,33 @@ export default defineUnlistedScript(async () => {
   const figma = window.figma_for_ui_content
 
   async function getSelectionInfo(): Promise<SelectionInfo> {
-    const { selection } = figma.currentPage
-    if (selection.length !== 1) {
+    try {
+      const { selection } = figma.currentPage
+      if (selection.length !== 1) {
+        return {
+          count: selection.length,
+        }
+      }
+
+      const node = selection[0]
+      const css = await node.getCSSAsync()
+
       return {
-        count: selection.length,
+        count: 1,
+        name: node.name,
+        css,
       }
     }
-
-    const node = selection[0]
-    const css = await node.getCSSAsync()
-
-    return {
-      count: 1,
-      name: node.name,
-      css,
+    catch (error) {
+      logger.error('获取选中信息失败', error)
+      window.location.reload()
+      return {
+        count: 0,
+      }
     }
   }
 
   async function emitSelectionInfo() {
-    logger.log('emitSelectionInfo')
     const info = await getSelectionInfo()
     await sendMessage('selection-info', JSON.parse(JSON.stringify(info)), 'content-script')
   }
